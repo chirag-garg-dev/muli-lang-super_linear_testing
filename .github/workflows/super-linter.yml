@@ -29,6 +29,11 @@ jobs:
           bundler-cache: true # runs 'bundle install' and caches installed gems automatically
         env:
           BUNDLE_RUBYGEMS__PKG__GITHUB__COM: ${{ secrets.BUNDLE_RUBYGEMS__PKG__GITHUB__COM }}
+      - run: |
+            echo "PWD: $(pwd)"
+            ls -l
+            ruby -v
+            bundle list
 
       - name: Super-linter
         uses: super-linter/super-linter@v8.0.0
@@ -36,3 +41,8 @@ jobs:
           VALIDATE_ALL_CODEBASE: true
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+            echo "PWD: $(pwd)"
+            ls -l
+            ruby -v
+            bundle list
