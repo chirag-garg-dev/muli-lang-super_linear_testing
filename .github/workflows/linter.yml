@@ -1,0 +1,46 @@
+name: Lint & Analyze Code
+
+on:
+  push:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  #########################
+  # ✅ SUPER-LINTER JOB   #
+  #########################
+  super-linter:
+    name: Lint Code Base
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Super Linter
+        uses: github/super-linter@v6
+        env:
+          VALIDATE_ALL_CODEBASE: true
+          DEFAULT_BRANCH: master
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUBY_CONFIG_FILE: .rubocop.yml # optional if you have a custom Rubocop config
+
+  #########################
+  # ✅ SONARCLOUD JOB     #
+  #########################
+  sonarcloud:
+    name: Analyze with SonarCloud
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        with:
+          projectBaseDir: .
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
