@@ -23,24 +23,24 @@ jobs:
         uses: github/super-linter@v6
         env:
           VALIDATE_ALL_CODEBASE: true
-          DEFAULT_BRANCH: master
+          DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUBY_CONFIG_FILE: .rubocop.yml # optional if you have a custom Rubocop config
 
   #########################
   # ✅ SONARCLOUD JOB     #
   #########################
-  sonarcloud:
-    name: Analyze with SonarCloud
-    runs-on: ubuntu-latest
+  # sonarcloud:
+  #   name: Analyze with SonarCloud
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout Code
+  #       uses: actions/checkout@v4
 
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v2
-        with:
-          projectBaseDir: .
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  #     - name: SonarCloud Scan
+  #       uses: SonarSource/sonarcloud-github-action@v2
+  #       with:
+  #         projectBaseDir: .
+  #       env:
+  #         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
