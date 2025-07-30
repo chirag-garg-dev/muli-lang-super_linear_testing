@@ -21,5 +21,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VALIDATE_ALL_CODEBASE: true
           VALIDATE_RUBY: true
+          LOG_LEVEL: DEBUG
+
           # Optional: Disable unwanted linters if needed
           # DISABLE_LINTERS: YAML_PRETTIER
