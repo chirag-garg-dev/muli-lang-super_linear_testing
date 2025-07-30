@@ -10,6 +10,9 @@ jobs:
   build:
     name: Lint
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: . # <-- ensure we run in the project root
 
     steps:
       - name: Checkout code
@@ -25,14 +28,11 @@ jobs:
         env:
           BUNDLE_RUBYGEMS__PKG__GITHUB__COM: ${{ secrets.BUNDLE_RUBYGEMS__PKG__GITHUB__COM }}
 
-      - name: Print environment before linting
-        run: |
-          echo "PWD: $(pwd)"
-          ls -l
-          echo "Ruby version: $(ruby -v)"
-          echo "Gemfile: $(realpath Gemfile)"
-          echo "Gem list:"
-          bundle list
+      - name: Install dependencies (if needed)
+        run: bundle install
+
+      - name: Show current Bundler environment
+        run: bundle list
 
       - name: Super Linter
         uses: super-linter/super-linter@v8.0.0
