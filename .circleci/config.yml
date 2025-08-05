@@ -1,0 +1,158 @@
+version: 2.1
+
+build_and_push_common: &build_and_push_common
+  auth: # TODO: use OIDC for auth
+    - aws-cli/setup:
+        aws_access_key_id: ${AWS_ACCESS_KEY_ID}
+        aws_secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+        region: ${AWS_REGION}
+  account_id: ${AWS_ECR_REGISTRY_ID}
+  region: ${AWS_REGION}
+  create_repo: false
+  repo: k8s-qa-env-tools
+  no_output_timeout: 20m
+  skip_when_tags_exist: false
+
+build_and_push_amd64: &build_and_push_amd64
+  <<: *build_and_push_common
+  extra_build_args: --build-arg GITHUB_TOKEN=${GITHUB_PACKAGES_API_TOKEN} --build-arg GITHUB_USER=${GITHUB_PACKAGES_USER} --build-arg GIT_COMMIT=${CIRCLE_SHA1} --build-arg AWSCLI_ARCH=x86_64
+
+build_and_push_arm64: &build_and_push_arm64
+  <<: *build_and_push_common
+  extra_build_args: --build-arg GITHUB_TOKEN=${GITHUB_PACKAGES_API_TOKEN} --build-arg GITHUB_USER=${GITHUB_PACKAGES_USER} --build-arg GIT_COMMIT=${CIRCLE_SHA1} --build-arg AWSCLI_ARCH=aarch64
+
+versioned_tag_filter: &versioned_tag_filter
+  filters:
+    tags:
+      only: /^v.*/
+    branches:
+      ignore: /.*/
+
+defaults: &defaults
+  machine:
+    image: ubuntu-2204:current
+
+context: &context
+  context: gems
+
+orbs:
+  aws-cli: circleci/aws-cli@5.1.0
+  aws-ecr: circleci/aws-ecr@9.3.2
+
+commands:
+  build_and_push_manifest:
+    parameters:
+      manifest_target:
+        type: string
+    steps:
+      - aws-ecr/ecr_login: # NOTE: not quite working as expected, still have to do `docker login`
+          account_id: ${AWS_ECR_REGISTRY_ID}
+      - run:
+          name: Generating Image Manifest
+          command: |
+            docker login -u AWS -p $(aws ecr get-login-password --region ${AWS_REGION}) ${AWS_ECR_ACCOUNT_URL_ENV_VAR_NAME}
+            export REPO="${AWS_ECR_ACCOUNT_URL_ENV_VAR_NAME}/k8s-qa-env-tools"
+            export MANIFEST_TARGET="${REPO}:<<parameters.manifest_target>>"
+            export AMD64=$(docker buildx imagetools inspect "${MANIFEST_TARGET}.amd64" --format "{{json .Manifest}}" | jq -r .digest)
+            export ARM64=$(docker buildx imagetools inspect "${MANIFEST_TARGET}.arm64" --format "{{json .Manifest}}" | jq -r .digest)
+            docker buildx imagetools create -t "${MANIFEST_TARGET}" "${REPO}@${AMD64}" "${REPO}@${ARM64}"
+            docker buildx imagetools inspect "${MANIFEST_TARGET}"
+
+workflows:
+  version: 2
+  images:
+    jobs:
+      - untagged_build_amd64:
+          <<: *context
+      - untagged_build_arm64:
+          <<: *context
+      - tagged_build_amd64:
+          <<: *context
+          <<: *versioned_tag_filter
+      - tagged_build_arm64:
+          <<: *context
+          <<: *versioned_tag_filter
+      - untagged_build_manifest:
+          <<: *context
+          requires:
+            - untagged_build_amd64
+            - untagged_build_arm64
+      - tagged_build_manifest:
+          <<: *context
+          <<: *versioned_tag_filter
+          requires:
+            - tagged_build_amd64
+            - tagged_build_arm64
+  tests:
+    jobs:
+      - build:
+          <<: *context
+
+jobs:
+  untagged_build_amd64:
+    <<: *defaults
+    steps:
+      - aws-ecr/build_and_push_image:
+          <<: *build_and_push_amd64
+          tag: '${CIRCLE_BRANCH}.amd64,${CIRCLE_BRANCH}.${CIRCLE_SHA1}.amd64'
+  untagged_build_arm64:
+    <<: *defaults
+    resource_class: arm.medium
+    steps:
+      - aws-ecr/build_and_push_image:
+          <<: *build_and_push_arm64
+          platform: linux/arm64
+          tag: '${CIRCLE_BRANCH}.arm64,${CIRCLE_BRANCH}.${CIRCLE_SHA1}.arm64'
+  tagged_build_amd64:
+    <<: *defaults
+    steps:
+      - aws-ecr/build_and_push_image:
+          <<: *build_and_push_amd64
+          tag: '${CIRCLE_TAG}.amd64'
+  tagged_build_arm64:
+    <<: *defaults
+    resource_class: arm.medium
+    steps:
+      - aws-ecr/build_and_push_image:
+          <<: *build_and_push_arm64
+          platform: linux/arm64
+          tag: '${CIRCLE_TAG}.arm64'
+  untagged_build_manifest:
+    <<: *defaults
+    steps:
+      - build_and_push_manifest:
+          manifest_target: '${CIRCLE_BRANCH}'
+      - build_and_push_manifest:
+          manifest_target: '${CIRCLE_BRANCH}.${CIRCLE_SHA1}'
+  tagged_build_manifest:
+    <<: *defaults
+    steps:
+      - build_and_push_manifest:
+          manifest_target: '${CIRCLE_TAG}'
+  build:
+    working_directory: ~/pincsolutions/
+    parallelism: 1
+    shell: /bin/bash --login
+    environment:
+      CIRCLE_ARTIFACTS: /tmp/circleci-artifacts
+      CIRCLE_TEST_REPORTS: /tmp/circleci-test-results
+      SKIP_RAILS_ADMIN_INITIALIZER: false
+    docker:
+    - image: cimg/ruby:3.4.4-browsers
+      environment:
+        RAILS_ENV: test
+    steps:
+    - checkout
+    - run: mkdir -p $CIRCLE_ARTIFACTS $CIRCLE_TEST_REPORTS
+    - run: gem install bundler:2.6.7
+
+    - restore_cache:
+        keys:
+          - aaa-2-{{ .Branch }}-{{ checksum "Gemfile.lock" }}
+          - aaa-2-1-{{ .Branch }}
+          - aaa-2-
+
+    - run: bundle install --jobs=4 --retry=3 --path vendor/bundle
+    - run: bundle exec license_finder
+    - run: bundle exec bundle-audit check --update
+
