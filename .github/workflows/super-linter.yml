@@ -7,20 +7,26 @@ on:
     branches: [main, master]
 
 jobs:
-  super-linter:
-    name: Lint Code Base
+  build:
+    name: Lint
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      packages: read
+      # To report GitHub Actions status checks
+      statuses: write
+
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
+          # super-linter needs the full git history to get the
+          # list of files that changed across commits
           fetch-depth: 0
 
-      - name: Run Super Linter
-        uses: super-linter/super-linter@v8
+      - name: Super-linter
+        uses: super-linter/super-linter@v8.0.0 # x-release-please-version
         env:
-          VALIDATE_ALL_CODEBASE: true
-          VALIDATE_RUBY: true
-          DEFAULT_BRANCH: main
+          # To report GitHub Actions status checks
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
