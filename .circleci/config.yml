@@ -155,3 +155,4 @@ jobs:
     - run: bundle install --jobs=4 --retry=3 --path vendor/bundle
     - run: bundle exec license_finder
     - run: bundle exec bundle-audit check --update
+
